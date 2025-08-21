@@ -1,0 +1,531 @@
+openapi: 3.0.3
+info:
+  title: Matka Backend API
+  version: 1.0.0
+  description: |
+    Node.js + Express + MongoDB API for users, wallet, bets/games, and markets/rates.
+    Auth uses Bearer JWT. All request/response bodies are JSON.
+
+servers:
+  - url: http://localhost:5002/api/v1
+    description: Local dev
+
+tags:
+  - name: Auth
+  - name: Users
+  - name: Wallet
+  - name: Games
+  - name: Markets
+  - name: AdminAuth
+    description: Super Admin authentication
+
+paths:
+  /auth/register:
+    post:
+      tags: [Auth]
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              mobile: "9500000000"
+              name: "Demo User"
+              email: "demo@example.com"
+              password: "secret123"
+      responses:
+        '201':
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '409':
+          description: Mobile already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Login with mobile + password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              mobile: "9500000000"
+              password: "secret123"
+      responses:
+        '200':
+          description: Logged in
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+
+  /users/me:
+    get:
+      tags: [Users]
+      summary: Get my profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /wallet/add-funds:
+    post:
+      tags: [Wallet]
+      summary: Add funds to wallet (manual/Razorpay/admin)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddFundsRequest'
+            example:
+              amount: 500
+              method: "MANUAL"
+      responses:
+        '201':
+          description: Wallet updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddFundsResponse'
+        '400':
+          description: Validation or logical error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /wallet/history:
+    get:
+      tags: [Wallet]
+      summary: My last 100 transactions
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Transactions list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /games/place:
+    post:
+      tags: [Games]
+      summary: Place a bet (atomic wallet debit + transaction)
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceBetRequest'
+            example:
+              game: "single"
+              bazar: "Kalyan"
+              date: "21/08/2025"
+              number: "5"
+              amount: 100
+              game_type: "regular"
+      responses:
+        '201':
+          description: Bet placed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceBetResponse'
+        '400':
+          description: Validation error / Insufficient wallet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /games/my:
+    get:
+      tags: [Games]
+      summary: My recent bets
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Bets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyBetsResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /markets/list:
+    get:
+      tags: [Markets]
+      summary: List active markets/timings
+      responses:
+        '200':
+          description: Markets
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MarketsResponse'
+
+  /markets/rates:
+    get:
+      tags: [Markets]
+      summary: Get current payout rates
+      responses:
+        '200':
+          description: Rates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatesResponse'
+
+  /admin/auth/login:
+    post:
+      tags: [AdminAuth]
+      summary: Super Admin login with email & password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminLoginRequest'
+            example:
+              email: "super@example.com"
+              password: "supersecret123"
+      responses:
+        '200':
+          description: Logged in (Super Admin)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLoginResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Not a superadmin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # ==== Common ====
+    ErrorResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: "Invalid token" }
+        stack:
+          type: string
+          nullable: true
+          description: Included in non-production envs
+
+    ValidationError:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        message: { type: string, example: "Validation error" }
+        details:
+          type: array
+          items:
+            type: object
+          example:
+            - message: '"mobile" is required'
+              path: ["body","mobile"]
+              type: "any.required"
+
+    # ==== Auth ====
+    RegisterRequest:
+      type: object
+      required: [mobile, name, password]
+      properties:
+        mobile: { type: string, maxLength: 20 }
+        name: { type: string, maxLength: 255 }
+        email: { type: string, format: email }
+        password: { type: string, minLength: 6, maxLength: 100 }
+
+    RegisterResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Registered" }
+        user:
+          type: object
+          properties:
+            id: { type: string, example: "66c5c67a2d7d8c5183f7c123" }
+            mobile: { type: string, example: "9500000000" }
+            name: { type: string, example: "Demo User" }
+
+    LoginRequest:
+      type: object
+      required: [mobile, password]
+      properties:
+        mobile: { type: string }
+        password: { type: string }
+
+    LoginResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Logged in" }
+        token: { type: string, example: "eyJhbGciOi..." }
+        user:
+          $ref: '#/components/schemas/UserPublic'
+
+    # ==== Users ====
+    MeResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OK" }
+        user:
+          allOf:
+            - $ref: '#/components/schemas/UserPublic'
+            - type: object
+              properties:
+                email: { type: string, nullable: true }
+
+    UserPublic:
+      type: object
+      properties:
+        id: { type: string, example: "66c5c67a2d7d8c5183f7c123" }
+        mobile: { type: string, example: "9500000000" }
+        name: { type: string, example: "Demo User" }
+        wallet: { type: number, example: 500 }
+
+    # ==== Wallet ====
+    AddFundsRequest:
+      type: object
+      required: [amount, method]
+      properties:
+        amount: { type: number, minimum: 1 }
+        method:
+          type: string
+          enum: [MANUAL, Razorpay, Added By Admin]
+
+    AddFundsResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Wallet updated" }
+        wallet: { type: number, example: 1000 }
+
+    TransactionsResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OK" }
+        transactions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Transaction'
+
+    Transaction:
+      type: object
+      properties:
+        _id: { type: string, example: "66c5c7f52d7d8c5183f7c999" }
+        userId: { type: string, example: "66c5c67a2d7d8c5183f7c123" }
+        userMobile: { type: string, example: "9500000000" }
+        amount: { type: number, example: 500 }
+        type: { type: string, enum: [CREDIT, DEBIT], example: "CREDIT" }
+        remark: { type: string, example: "Add funds (MANUAL)" }
+        gameId: { type: string, nullable: true, example: null }
+        batchId: { type: string, nullable: true, example: null }
+        status: { type: number, example: 1 }
+        createdAt: { type: string, format: date-time }
+
+    # ==== Games ====
+    PlaceBetRequest:
+      type: object
+      required: [game, bazar, date, number, amount]
+      properties:
+        game: { type: string, maxLength: 22 }
+        bazar: { type: string, maxLength: 55 }
+        date: { type: string, description: "Legacy date string, e.g., 21/08/2025" }
+        number: { type: string, maxLength: 255 }
+        amount: { type: number, minimum: 1 }
+        game_type: { type: string, maxLength: 50, nullable: true }
+
+    PlaceBetResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Bet placed" }
+        bet:
+          $ref: '#/components/schemas/Bet'
+
+    MyBetsResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OK" }
+        bets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bet'
+
+    Bet:
+      type: object
+      properties:
+        _id: { type: string, example: "66c5d100c02cf4ec08b0a321" }
+        userId: { type: string, example: "66c5c67a2d7d8c5183f7c123" }
+        userMobile: { type: string, example: "9500000000" }
+        game: { type: string, example: "single" }
+        bazar: { type: string, example: "Kalyan" }
+        date: { type: string, example: "21/08/2025" }
+        number: { type: string, example: "5" }
+        amount: { type: number, example: 100 }
+        status: { type: number, enum: [0,1], example: 0 }
+        is_loss: { type: number, enum: [0,1], example: 0 }
+        win_amount: { type: number, example: 0 }
+        game_type: { type: string, example: "regular" }
+        createdAt: { type: string, format: date-time }
+
+    # ==== Markets ====
+    MarketsResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OK" }
+        markets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Market'
+
+    Market:
+      type: object
+      properties:
+        _id: { type: string }
+        market: { type: string, example: "Kalyan" }
+        open: { type: string, example: "09:45" }
+        close: { type: string, example: "12:15" }
+        days: { type: string, example: "Mon,Tue,Wed,Thu,Fri,Sat" }
+        sort_no: { type: number, example: 1 }
+        active: { type: string, enum: ["0","1"], example: "1" }
+        open_status: { type: number, enum: [0,1], example: 0 }
+        close_status: { type: number, enum: [0,1], example: 0 }
+
+    RatesResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OK" }
+        rates:
+          $ref: '#/components/schemas/Rates'
+
+    Rates:
+      type: object
+      properties:
+        _id: { type: string }
+        single: { type: string, example: "9:90" }
+        jodi: { type: string, example: "9:900" }
+        singlepatti: { type: string, example: "1:150" }
+        doublepatti: { type: string, example: "1:300" }
+        triplepatti: { type: string, example: "1:600" }
+        halfsangam: { type: string, example: "1:1000" }
+        fullsangam: { type: string, example: "1:10000" }
+
+    # ==== Admin ====
+    AdminLoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 6 }
+
+    AdminLoginResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Super admin logged in" }
+        token: { type: string, example: "eyJhbGciOi..." }
+        admin:
+          type: object
+          properties:
+            id: { type: string, example: "66c6a2..." }
+            email: { type: string, example: "super@example.com" }
+            role: { type: string, example: "superadmin" }
