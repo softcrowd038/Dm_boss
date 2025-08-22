@@ -8,7 +8,7 @@ const AdminSchema = new mongoose.Schema(
     wallet: { type: String, default: "0", maxlength: 255 },
     ref_id: { type: String, default: null, maxlength: 5000 },
     tasks: { type: String, default: null, maxlength: 300 },
-    commision: { type: Number, default: null }, // float
+    commision: { type: Number, default: null },
     app_download: { type: String, default: null, maxlength: 200 },
     session_token: { type: String, default: null, maxlength: 255 },
     role: { type: String, enum: ["superadmin", "admin"], default: "admin", index: true },
@@ -16,5 +16,7 @@ const AdminSchema = new mongoose.Schema(
   },
   { timestamps: true, collection: "admin" }
 );
+
+AdminSchema.index({ email: 1 }, { unique: true });
 
 export default mongoose.model("Admin", AdminSchema);

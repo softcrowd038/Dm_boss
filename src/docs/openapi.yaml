@@ -17,7 +17,11 @@ tags:
   - name: Games
   - name: Markets
   - name: AdminAuth
-    description: Super Admin authentication
+    description: Super Admin authentication (password + WhatsApp OTP)
+  - name: AdminMarkets
+    description: Admin CRUD for markets (gametime_manual)
+  - name: Admin
+    description: Admin-only utilities (e.g., rates)
 
 paths:
   /auth/register:
@@ -246,44 +250,312 @@ paths:
               schema:
                 $ref: '#/components/schemas/RatesResponse'
 
+  # ------------------- ADMIN AUTH --------------------
   /admin/auth/login:
     post:
       tags: [AdminAuth]
-      summary: Super Admin login with email & password
+      summary: Start admin login (email+password) → sends WhatsApp OTP
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/AdminLoginRequest'
-            example:
-              email: "super@example.com"
-              password: "supersecret123"
+            examples:
+              ok:
+                value: { email: "superadmin@example.com", password: "superadminsecret123" }
       responses:
-        '200':
-          description: Logged in (Super Admin)
+        '201':
+          description: OTP created and sent
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AdminLoginResponse'
+                $ref: '#/components/schemas/AdminLoginStartResponse'
         '400':
           description: Validation error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ValidationError'
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationError' } } }
         '401':
           description: Invalid credentials
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '502':
+          description: OTP gateway error
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+
+  /admin/auth/verify-otp:
+    post:
+      tags: [AdminAuth]
+      summary: Verify OTP and receive JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminVerifyOtpRequest' }
+            examples:
+              ok:
+                value:
+                  email: "superadmin@example.com"
+                  sessionToken: "b8d3b6a7-9f53-4a0a-9b83-1a217..."
+                  otp: "1234"
+      responses:
+        '200':
+          description: Logged in
+          content: { application/json: { schema: { $ref: '#/components/schemas/AdminVerifyOtpResponse' } } }
+        '400':
+          description: Validation error
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationError' } } }
+        '401':
+          description: Invalid session / OTP
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '429':
+          description: Too many OTP attempts
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+
+  /admin/auth/logout:
+    post:
+      tags: [AdminAuth]
+      summary: Logout admin (clears session_token)
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: Logged out
+          content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } }
+
+  # ------------------- ADMIN MARKETS -------------------
+  /admin/markets:
+    get:
+      tags: [AdminMarkets]
+      summary: List markets (admin table)
+      security: [ { bearerAuth: [] } ]
+      responses:
+        '200':
+          description: OK
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+              schema: { $ref: '#/components/schemas/AdminMarketsListResponse' }
+        '401':
+          description: Unauthorized
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
         '403':
-          description: Not a superadmin
+          description: Forbidden (needs superadmin)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+
+    post:
+      tags: [AdminMarkets]
+      summary: Create market
+      security: [ { bearerAuth: [] } ]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminMarketCreateRequest' }
+            examples:
+              sample:
+                value:
+                  market: "KALYAN"
+                  open: "16:50"
+                  close: "18:50"
+                  sort_no: 0
+                  perDay:
+                    SUNDAY:   { timetype: "close" }
+                    SATURDAY: { timetype: "close" }
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AdminMarketCreateResponse' }
+        '400':
+          description: Validation error
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationError' } } }
+        '401':
+          description: Unauthorized
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '403':
+          description: Forbidden (needs superadmin)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '409':
+          description: Market already exists
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+
+  /admin/markets/{id}:
+    put:
+      tags: [AdminMarkets]
+      summary: Update market (open/close/sort and per-day overrides)
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminMarketUpdateRequest' }
+            examples:
+              sample:
+                value:
+                  open: "21:30"
+                  close: "23:30"
+                  perDay:
+                    SUNDAY: { timetype: "close" }
+                    SATURDAY: { timetype: "close" }
+      responses:
+        '200':
+          description: Updated
+          content: { application/json: { schema: { $ref: '#/components/schemas/AdminMarketUpdateResponse' } } }
+        '400':
+          description: Validation error
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationError' } } }
+        '401':
+          description: Unauthorized
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '403':
+          description: Forbidden (needs superadmin)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '404':
+          description: Not found
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+
+    delete:
+      tags: [AdminMarkets]
+      summary: Delete market
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deleted
+          content: { application/json: { schema: { $ref: '#/components/schemas/OkResponse' } } }
+        '401':
+          description: Unauthorized
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '403':
+          description: Forbidden (needs superadmin)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '404':
+          description: Not found
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+
+  /admin/markets/{id}/active:
+    patch:
+      tags: [AdminMarkets]
+      summary: Activate/Deactivate market
+      security: [ { bearerAuth: [] } ]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AdminMarketPatchActiveRequest' }
+            examples:
+              deactivate: { value: { active: "0" } }
+              activate:   { value: { active: "1" } }
+      responses:
+        '200':
+          description: Status changed
+          content: { application/json: { schema: { $ref: '#/components/schemas/AdminMarketPatchActiveResponse' } } }
+        '400':
+          description: Validation error
+          content: { application/json: { schema: { $ref: '#/components/schemas/ValidationError' } } }
+        '401':
+          description: Unauthorized
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '403':
+          description: Forbidden (needs superadmin)
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+        '404':
+          description: Not found
+          content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
+
+  # ------------------- ADMIN RATES -------------------
+  /admin/rates:
+    get:
+      tags: [Admin]
+      summary: Get current game rates (both numeric & display)
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "OK" }
+                  data:
+                    type: object
+                    properties:
+                      numeric:
+                        $ref: '#/components/schemas/RateNumeric'
+                      display:
+                        $ref: '#/components/schemas/RateDisplay'
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
+
+    post:
+      tags: [Admin]
+      summary: Upsert game rates (admin/superadmin). Body values are per-10 (e.g., single=95 → stored as "10/95" & 9.5)
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatesPer10Input'
+            example:
+              single: 95
+              jodi: 950
+              singlepatti: 1500
+              doublepatti: 3000
+              triplepatti: 9000
+              halfsangam: 13000
+              fullsangam: 100000
+              Sp: 150000
+              Dp: 150000
+              round: 150000
+              centerpanna: 150000
+              aki: 150000
+              beki: 150000
+              chart50: 150000
+              chart60: 150000
+              chart70: 150000
+              akibekicut30: 150000
+              abr30pana: 150000
+              startend: 150000
+              cyclepana: 150000
+              groupjodi: 950
+              panelgroup: 1500
+              bulkjodi: 950
+              bulksp: 1500
+              bulkdp: 3000
+              familypannel: 6000
+              familyjodi: 3000
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Rates updated" }
+                  data:
+                    type: object
+                    properties:
+                      updated: { type: boolean, example: true }
+        "400": { description: Validation error }
+        "401": { description: Unauthorized }
+        "403": { description: Forbidden }
 
 components:
   securitySchemes:
@@ -293,7 +565,16 @@ components:
       bearerFormat: JWT
 
   schemas:
-    # ==== Common ====
+    # ---------- Common ----------
+    OkResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OK" }
+        data:
+          type: object
+          nullable: true
+
     ErrorResponse:
       type: object
       properties:
@@ -302,7 +583,6 @@ components:
         stack:
           type: string
           nullable: true
-          description: Included in non-production envs
 
     ValidationError:
       type: object
@@ -311,14 +591,9 @@ components:
         message: { type: string, example: "Validation error" }
         details:
           type: array
-          items:
-            type: object
-          example:
-            - message: '"mobile" is required'
-              path: ["body","mobile"]
-              type: "any.required"
+          items: { type: object }
 
-    # ==== Auth ====
+    # ---------- Auth (User) ----------
     RegisterRequest:
       type: object
       required: [mobile, name, password]
@@ -356,7 +631,7 @@ components:
         user:
           $ref: '#/components/schemas/UserPublic'
 
-    # ==== Users ====
+    # ---------- Users ----------
     MeResponse:
       type: object
       properties:
@@ -377,7 +652,7 @@ components:
         name: { type: string, example: "Demo User" }
         wallet: { type: number, example: 500 }
 
-    # ==== Wallet ====
+    # ---------- Wallet ----------
     AddFundsRequest:
       type: object
       required: [amount, method]
@@ -418,7 +693,7 @@ components:
         status: { type: number, example: 1 }
         createdAt: { type: string, format: date-time }
 
-    # ==== Games ====
+    # ---------- Games ----------
     PlaceBetRequest:
       type: object
       required: [game, bazar, date, number, amount]
@@ -459,13 +734,13 @@ components:
         date: { type: string, example: "21/08/2025" }
         number: { type: string, example: "5" }
         amount: { type: number, example: 100 }
-        status: { type: number, enum: [0,1], example: 0 }
-        is_loss: { type: number, enum: [0,1], example: 0 }
+        status: { type: number, enum: [0, 1], example: 0 }
+        is_loss: { type: number, enum: [0, 1], example: 0 }
         win_amount: { type: number, example: 0 }
         game_type: { type: string, example: "regular" }
         createdAt: { type: string, format: date-time }
 
-    # ==== Markets ====
+    # ---------- Markets (public) ----------
     MarketsResponse:
       type: object
       properties:
@@ -509,7 +784,7 @@ components:
         halfsangam: { type: string, example: "1:1000" }
         fullsangam: { type: string, example: "1:10000" }
 
-    # ==== Admin ====
+    # ---------- Admin Auth (OTP flow) ----------
     AdminLoginRequest:
       type: object
       required: [email, password]
@@ -517,15 +792,266 @@ components:
         email: { type: string, format: email }
         password: { type: string, minLength: 6 }
 
-    AdminLoginResponse:
+    AdminLoginStartResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OTP sent to configured WhatsApp number" }
+        data:
+          type: object
+          properties:
+            sessionToken: { type: string, example: "b8d3b6a7-9f53-4a0a-9b83-1a217..." }
+            otpExpiresInSec: { type: integer, example: 300 }
+
+    AdminVerifyOtpRequest:
+      type: object
+      required: [email, sessionToken, otp]
+      properties:
+        email: { type: string, format: email }
+        sessionToken: { type: string }
+        otp: { type: string, minLength: 4, maxLength: 6 }
+
+    Admin:
+      type: object
+      properties:
+        id: { type: string, example: "66c6a2..." }
+        email: { type: string, example: "superadmin@example.com" }
+        role: { type: string, example: "superadmin" }
+
+    AdminVerifyOtpResponse:
       type: object
       properties:
         success: { type: boolean, example: true }
         message: { type: string, example: "Super admin logged in" }
-        token: { type: string, example: "eyJhbGciOi..." }
-        admin:
+        data:
           type: object
           properties:
-            id: { type: string, example: "66c6a2..." }
-            email: { type: string, example: "super@example.com" }
-            role: { type: string, example: "superadmin" }
+            token: { type: string, example: "eyJhbGciOi..." }
+            admin: { $ref: '#/components/schemas/Admin' }
+
+    # ---------- Admin Markets ----------
+    DayOverride:
+      type: object
+      properties:
+        timetype:
+          type: string
+          enum: [open, close]
+          description: 'close => store DAY(CLOSED); open => requires open/close times'
+        open:
+          type: string
+          pattern: '^([01]\\d|2[0-3]):[0-5]\\d$'
+          description: HH:mm (24h)
+        close:
+          type: string
+          pattern: '^([01]\\d|2[0-3]):[0-5]\\d$'
+          description: HH:mm (24h)
+
+    PerDayOverrides:
+      type: object
+      additionalProperties:
+        $ref: '#/components/schemas/DayOverride'
+      description: Keys must be exact weekday names (SUNDAY..SATURDAY)
+
+    AdminMarketCreateRequest:
+      type: object
+      required: [market, open, close]
+      properties:
+        market: { type: string, maxLength: 255 }
+        open: { type: string, pattern: '^([01]\\d|2[0-3]):[0-5]\\d$', description: 'HH:mm (24h)' }
+        close: { type: string, pattern: '^([01]\\d|2[0-3]):[0-5]\\d$', description: 'HH:mm (24h)' }
+        sort_no: { type: integer, default: 0 }
+        perDay: { $ref: '#/components/schemas/PerDayOverrides' }
+
+    MarketDoc:
+      type: object
+      properties:
+        _id: { type: string }
+        sn: { type: integer, example: 101 }
+        market: { type: string, example: "KALYAN" }
+        open: { type: string, example: "16:50" }
+        close: { type: string, example: "18:50" }
+        days: { type: string, example: "SUNDAY(CLOSED),SATURDAY(CLOSED)" }
+        sort_no: { type: integer, example: 0 }
+        active: { type: string, enum: ["0","1"], example: "1" }
+        open_status: { type: integer, enum: [0,1], example: 0 }
+        close_status: { type: integer, enum: [0,1], example: 0 }
+
+    AdminMarketCreateResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Market created" }
+        data:
+          type: object
+          properties:
+            market: { $ref: '#/components/schemas/MarketDoc' }
+
+    AdminMarketUpdateRequest:
+      type: object
+      properties:
+        open:  { type: string, pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }
+        close: { type: string, pattern: '^([01]\\d|2[0-3]):[0-5]\\d$' }
+        sort_no: { type: integer }
+        perDay: { $ref: '#/components/schemas/PerDayOverrides' }
+
+    AdminMarketUpdateResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Market updated" }
+        data:
+          type: object
+          properties:
+            market: { $ref: '#/components/schemas/MarketDoc' }
+
+    AdminMarketPatchActiveRequest:
+      type: object
+      required: [active]
+      properties:
+        active:
+          type: string
+          enum: ["0","1"]
+
+    AdminMarketPatchActiveResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "Status changed" }
+        data:
+          type: object
+          properties:
+            market: { $ref: '#/components/schemas/MarketDoc' }
+
+    AdminMarketsListResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: true }
+        message: { type: string, example: "OK" }
+        data:
+          type: object
+          properties:
+            items:
+              type: array
+              items: { $ref: '#/components/schemas/MarketDoc' }
+
+    # ---------- Admin Rates ----------
+    RatesPer10Input:
+      type: object
+      required:
+        - single
+        - jodi
+        - singlepatti
+        - doublepatti
+        - triplepatti
+        - halfsangam
+        - fullsangam
+        - Sp
+        - Dp
+        - round
+        - centerpanna
+        - aki
+        - beki
+        - chart50
+        - chart60
+        - chart70
+        - akibekicut30
+        - abr30pana
+        - startend
+        - cyclepana
+        - groupjodi
+        - panelgroup
+        - bulkjodi
+        - bulksp
+        - bulkdp
+        - familypannel
+        - familyjodi
+      properties:
+        single:        { type: number, example: 95 }
+        jodi:          { type: number, example: 950 }
+        singlepatti:   { type: number, example: 1500 }
+        doublepatti:   { type: number, example: 3000 }
+        triplepatti:   { type: number, example: 9000 }
+        halfsangam:    { type: number, example: 13000 }
+        fullsangam:    { type: number, example: 100000 }
+        Sp:            { type: number, example: 150000 }
+        Dp:            { type: number, example: 150000 }
+        round:         { type: number, example: 150000 }
+        centerpanna:   { type: number, example: 150000 }
+        aki:           { type: number, example: 150000 }
+        beki:          { type: number, example: 150000 }
+        chart50:       { type: number, example: 150000 }
+        chart60:       { type: number, example: 150000 }
+        chart70:       { type: number, example: 150000 }
+        akibekicut30:  { type: number, example: 150000 }
+        abr30pana:     { type: number, example: 150000 }
+        startend:      { type: number, example: 150000 }
+        cyclepana:     { type: number, example: 150000 }
+        groupjodi:     { type: number, example: 950 }
+        panelgroup:    { type: number, example: 1500 }
+        bulkjodi:      { type: number, example: 950 }
+        bulksp:        { type: number, example: 1500 }
+        bulkdp:        { type: number, example: 3000 }
+        familypannel:  { type: number, example: 6000 }
+        familyjodi:    { type: number, example: 3000 }
+
+    RateNumeric:
+      type: object
+      properties:
+        single:        { type: number, example: 9.5 }
+        jodi:          { type: number, example: 95 }
+        singlepatti:   { type: number, example: 150 }
+        doublepatti:   { type: number, example: 300 }
+        triplepatti:   { type: number, example: 900 }
+        halfsangam:    { type: number, example: 1300 }
+        fullsangam:    { type: number, example: 10000 }
+        Sp:            { type: number, example: 15000 }
+        Dp:            { type: number, example: 15000 }
+        round:         { type: number, example: 15000 }
+        centerpanna:   { type: number, example: 15000 }
+        aki:           { type: number, example: 15000 }
+        beki:          { type: number, example: 15000 }
+        chart50:       { type: number, example: 15000 }
+        chart60:       { type: number, example: 15000 }
+        chart70:       { type: number, example: 15000 }
+        akibekicut30:  { type: number, example: 15000 }
+        abr30pana:     { type: number, example: 15000 }
+        startend:      { type: number, example: 15000 }
+        cyclepana:     { type: number, example: 15000 }
+        groupjodi:     { type: number, example: 95 }
+        panelgroup:    { type: number, example: 150 }
+        bulkjodi:      { type: number, example: 95 }
+        bulksp:        { type: number, example: 150 }
+        bulkdp:        { type: number, example: 300 }
+        familypannel:  { type: number, example: 600 }
+        familyjodi:    { type: number, example: 300 }
+
+    RateDisplay:
+      type: object
+      properties:
+        single:        { type: string, example: "10/95" }
+        jodi:          { type: string, example: "10/950" }
+        singlepatti:   { type: string, example: "10/1500" }
+        doublepatti:   { type: string, example: "10/3000" }
+        triplepatti:   { type: string, example: "10/9000" }
+        halfsangam:    { type: string, example: "10/13000" }
+        fullsangam:    { type: string, example: "10/100000" }
+        Sp:            { type: string, example: "10/150000" }
+        Dp:            { type: string, example: "10/150000" }
+        round:         { type: string, example: "10/150000" }
+        centerpanna:   { type: string, example: "10/150000" }
+        aki:           { type: string, example: "10/150000" }
+        beki:          { type: string, example: "10/150000" }
+        chart50:       { type: string, example: "10/150000" }
+        chart60:       { type: string, example: "10/150000" }
+        chart70:       { type: string, example: "10/150000" }
+        akibekicut30:  { type: string, example: "10/150000" }
+        abr30pana:     { type: string, example: "10/150000" }
+        startend:      { type: string, example: "10/150000" }
+        cyclepana:     { type: string, example: "10/150000" }
+        groupjodi:     { type: string, example: "10/950" }
+        panelgroup:    { type: string, example: "10/1500" }
+        bulkjodi:      { type: string, example: "10/950" }
+        bulksp:        { type: string, example: "10/1500" }
+        bulkdp:        { type: string, example: "10/3000" }
+        familypannel:  { type: string, example: "10/6000" }
+        familyjodi:    { type: string, example: "10/3000" }

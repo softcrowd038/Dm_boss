@@ -1,18 +1,39 @@
 import { Router } from "express";
-import Joi from "joi";
 import { validate } from "../middlewares/validate.js";
+import {
+  adminLoginSchema,
+  adminVerifyOtpSchema,
+  adminResendOtpSchema
+} from "../validators/admin.auth.validators.js";
+import {
+  adminLoginStart,
+  adminVerifyOtp,
+  adminResendOtp,
+  adminLogout
+} from "../controllers/admin.auth.controller.js";
+import { adminLoginLimiter, adminVerifyLimiter } from "../middlewares/rateLimit.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
-import { adminLogin } from "../controllers/adminAuth.controller.js";
 
 const router = Router();
 
-const loginSchema = Joi.object({
-  body: Joi.object({
-    email: Joi.string().email().required(),
-    password: Joi.string().min(6).required()
-  })
-});
+router.post("/login",
+  adminLoginLimiter,
+  validate(adminLoginSchema),
+  asyncHandler(adminLoginStart)
+);
 
-router.post("/login", validate(loginSchema), asyncHandler(adminLogin));
+router.post("/verify-otp",
+  adminVerifyLimiter,
+  validate(adminVerifyOtpSchema),
+  asyncHandler(adminVerifyOtp)
+);
+
+router.post("/resend-otp",
+  adminVerifyLimiter,
+  validate(adminResendOtpSchema),
+  asyncHandler(adminResendOtp)
+);
+
+router.post("/logout", asyncHandler(adminLogout));
 
 export default router;
