@@ -8,11 +8,11 @@ const GamesSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
     game: { type: String, required: true, maxlength: 22 },
     bazar: { type: String, required: true, maxlength: 55 },
-    date: { type: String, required: true, maxlength: 22 },     // e.g. '08/07/2025'
+    date: { type: String, required: true, maxlength: 22 },   
     number: { type: String, required: true, maxlength: 255 },
     amount: { type: Number, required: true },
     status: { type: Number, default: 0, enum: [0, 1] },
-    created_at: { type: String, required: true, maxlength: 22 }, // epoch string
+    created_at: { type: String, required: true, maxlength: 22 }, 
     game_type: { type: String, default: "" },
     timestamp: { type: Date, default: Date.now }
   },

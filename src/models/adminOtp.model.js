@@ -15,7 +15,7 @@ const AdminOtpSchema = new mongoose.Schema(
   { timestamps: true, collection: "admin_otps" }
 );
 
-// auto-delete when expiresAt < now
+
 AdminOtpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export default mongoose.model("AdminOtp", AdminOtpSchema);

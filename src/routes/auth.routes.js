@@ -1,12 +1,23 @@
 import { Router } from "express";
-import { register, login } from "../controllers/auth.controller.js";
-import { validate } from "../middlewares/validate.js";
-import { registerSchema, loginSchema } from "../validators/auth.validators.js";
+import {
+registerUser,
+  loginUser,
+  logout,
+  getMe,
+  verifyUser,
+} from "../controllers/users.controller.js";
+import { protect } from "../middlewares/protect.js";
+import { validateRegistration } from "../middlewares/validate.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
 const router = Router();
 
-router.post("/register", validate(registerSchema), asyncHandler(register));
-router.post("/login", validate(loginSchema), asyncHandler(login));
+// Auth routes
+// Auth routes
+router.post("/register", validateRegistration, asyncHandler(registerUser));
+router.post("/login", asyncHandler(loginUser));
+router.get("/logout", protect, asyncHandler(logout)); // Fixed: removed parentheses from protect
+router.get("/me", protect, asyncHandler(getMe)); // Fixed: removed parentheses from protect
+router.post("/verify", protect, asyncHandler(verifyUser)); // Fixed: removed parentheses from protect
 
 export default router;

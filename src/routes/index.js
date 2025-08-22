@@ -9,23 +9,38 @@ import adminAuthRoutes from "./admin.auth.routes.js";
 import adminMarketsRoutes from "./admin.markets.routes.js";
 import adminRatesRoutes from "./admin.rates.routes.js";
 
-
-
 const router = Router();
 
+// Public API routes
 router.use("/auth", authRoutes);
+router.use("/markets", marketsRoutes);
+router.use("/docs", docsRoutes); // Swagger UI documentation
+
+// Protected user routes (require authentication)
 router.use("/users", userRoutes);
 router.use("/wallet", walletRoutes);
 router.use("/games", gamesRoutes);
-router.use("/markets", marketsRoutes);
 
-// Swagger UI (visit http://localhost:5002/api/v1/docs)
-router.use("/docs", docsRoutes);
+// Admin routes (separate admin authentication)
 router.use("/admin/auth", adminAuthRoutes);
 router.use("/admin/markets", adminMarketsRoutes);
 router.use("/admin/rates", adminRatesRoutes);
 
-// router.use("/auth", authRoutes); router.use("/users", ...) etc.
+// Health check endpoint
+router.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "API is running successfully",
+    timestamp: new Date().toISOString()
+  });
+});
 
+// Fallback route for undefined endpoints
+router.use("*", (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `Route ${req.originalUrl} not found`
+  });
+});
 
 export default router;
